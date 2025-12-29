@@ -104,16 +104,30 @@ Claude gives you:
 
 ## Step 4: Check In
 
-When agents finish, they give you a completion report. Collect them all and say:
+When agents finish, they create PRs on GitHub. Just say:
 
-> "Here are the agent reports: [paste all reports]"
+> "Check on the agents"
 
-Claude shows a dashboard:
+Claude auto-fetches from GitHub and shows:
 ```
-✅ Complete: 3 agents
-⚠️ Partial: 1 agent  
-❌ Blocked: 0 agents
+📊 Agent Status Dashboard (from GitHub)
+
+| PRs Found | Files Changed | Conflicts |
+|-----------|---------------|-----------|
+| 4         | 23            | 0         |
+
+### Agent PRs
+| Agent | PR | Branch | +/- | Status |
+|-------|----|---------|----|--------|
+| 1 | #4 | agent/1-logging | +628/-3 | ✅ Open |
+| 2 | #1 | agent/2-deployment | +198/-5 | ✅ Open |
+| 3 | #2 | agent/3-offline | +312/-8 | ✅ Open |
+| 4 | #3 | agent/4-testing | +1387/-0 | ✅ Open |
+
+### ✅ No Conflicts Detected
 ```
+
+No more copy-pasting reports!
 
 ---
 
@@ -121,12 +135,40 @@ Claude shows a dashboard:
 
 When all agents are done:
 
-> "Show me how to integrate"
+> "How do I integrate these?"
 
-Claude gives you:
-- Order to merge the branches
-- Test checklist to verify everything works
-- Commands to run
+Claude fetches PR info and gives you:
+```
+## Integrate
+
+### Pre-Merge Checklist
+- [ ] All PRs passing CI
+- [ ] No merge conflicts detected
+
+### Recommended Merge Order
+
+**1. Tests** (low risk)
+   - Agent 4: Integration Testing → PR #3
+
+**2. Backend/Infrastructure**  
+   - Agent 1: Logging Infrastructure → PR #4
+   - Agent 2: Deployment Ready → PR #1
+
+**3. Frontend/UI**
+   - Agent 3: Offline Error Recovery → PR #2
+
+### Merge Commands
+
+```bash
+# Merge in this order:
+gh pr merge 3 --squash && git pull && pytest
+gh pr merge 4 --squash && git pull && pytest
+gh pr merge 1 --squash && git pull && pytest
+gh pr merge 2 --squash && git pull && pytest
+```
+```
+
+Copy-paste the merge commands and you're done.
 
 ---
 
@@ -150,8 +192,8 @@ Claude recommends:
 | "Check workflow status" | Shows current phase and next step |
 | "Review this codebase" | Analyzes code, creates agent tasks |
 | "Show launch sequence" | Gives copy-paste prompts for agents |
-| "Here are the reports..." | Aggregates progress, shows dashboard |
-| "How do I integrate?" | Merge order + test plan |
+| "Check on the agents" | Auto-fetches PRs from GitHub, shows dashboard |
+| "How do I integrate?" | Merge order + actual PR commands |
 | "What's next?" | Deploy/iterate/add features recommendation |
 | "Save this learning..." | Captures notes for future reference |
 | "Search patterns for X" | Finds relevant past learnings |
@@ -193,11 +235,18 @@ Restart Claude Desktop after editing the config file.
 **"Review not complete"**  
 Run the review step first before trying to launch.
 
+**"Couldn't fetch from GitHub"**  
+Make sure `gh` CLI is installed and authenticated:
+```bash
+brew install gh
+gh auth login
+```
+
 **Agent stuck**  
-Check their completion report for blockers. Answer their question and relaunch just that agent.
+Check their PR on GitHub for errors. Provide clarification and have them continue.
 
 **Merge conflicts**  
-Follow the merge order from integrate step. Simpler changes first.
+Follow the merge order from integrate step. The tool detects which files overlap.
 
 ---
 
@@ -213,33 +262,34 @@ You: Show me the launch sequence
 
 Claude: Launch Order:
         1. Agent 1 (Backend Security) - run first
-        2. Agents 2, 3 - run in parallel after
+        2. Agents 2, 3, 4 - run in parallel after
         
         [copy-paste prompts for each]
 
-You: [opens 3 Claude windows, pastes prompts, agents work]
+You: [opens 4 Claude windows, pastes prompts, agents work, create PRs]
 
-You: Here are the completion reports:
-     [pastes all 3 reports]
+You: Check on the agents
 
-Claude: 📊 Dashboard
-        ✅ Complete: 3/3
-        Ready for integration!
+Claude: 📊 Agent Status Dashboard (from GitHub)
+        
+        | PRs Found | Conflicts |
+        |-----------|-----------|
+        | 4         | 0         |
+        
+        ✅ All PRs open, no conflicts!
 
 You: How do I integrate?
 
-Claude: Merge order:
-        1. Agent 3 (docs) - lowest risk
-        2. Agent 2 (tests)  
-        3. Agent 1 (backend)
+Claude: ### Merge Commands
         
-        Test plan:
-        ☐ App starts
-        ☐ All tests pass
-        ☐ Login works
-        ...
+        ```bash
+        gh pr merge 3 --squash && git pull && pytest
+        gh pr merge 4 --squash && git pull && pytest
+        gh pr merge 1 --squash && git pull && pytest  
+        gh pr merge 2 --squash && git pull && pytest
+        ```
 
-You: [merges PRs, runs tests]
+You: [runs merge commands]
      What's next?
 
 Claude: All tests passing, no critical issues.
