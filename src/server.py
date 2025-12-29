@@ -155,6 +155,36 @@ async def list_tools():
                 }
             }
         ),
+        Tool(
+            name="maw_setup",
+            description="Initialize a repo for MAW workflow. Creates AGENT_PROMPTS/, WORKFLOW_STATE.json, updates .gitignore",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_path": {"type": "string", "default": "."}
+                }
+            }
+        ),
+        Tool(
+            name="maw_clean",
+            description="Clean up after iteration. Removes old agent prompts, resets state, optionally deletes branches",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_path": {"type": "string", "default": "."},
+                    "delete_branches": {
+                        "type": "boolean",
+                        "description": "Also delete local agent/* branches",
+                        "default": False
+                    },
+                    "delete_remote": {
+                        "type": "boolean",
+                        "description": "Also delete remote agent/* branches",
+                        "default": False
+                    }
+                }
+            }
+        ),
     ]
 
 
@@ -170,6 +200,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         "maw_decide": handle_decide,
         "maw_learn": handle_learn,
         "maw_patterns": handle_patterns,
+        "maw_setup": handle_setup,
+        "maw_clean": handle_clean,
     }
     
     handler = handlers.get(name)
@@ -1042,6 +1074,170 @@ async def handle_patterns(args: dict) -> str:
         return f"No patterns found matching '{query}'"
     
     return f"## Patterns matching '{query}'\n\n" + "\n\n---\n\n".join(matches)
+
+
+async def handle_setup(args: dict) -> str:
+    """Initialize repo for MAW workflow"""
+    project_path = args.get("project_path", ".")
+    path = Path(project_path).resolve()
+    
+    lines = ["## MAW Setup\n"]
+    created = []
+    
+    # Create AGENT_PROMPTS directory
+    prompts_dir = path / "AGENT_PROMPTS"
+    if not prompts_dir.exists():
+        prompts_dir.mkdir()
+        (prompts_dir / ".gitkeep").touch()
+        created.append("AGENT_PROMPTS/")
+    
+    # Create WORKFLOW_STATE.json
+    state_file = path / "WORKFLOW_STATE.json"
+    if not state_file.exists():
+        state = WorkflowState.empty(path)
+        save_state(state, project_path)
+        created.append("WORKFLOW_STATE.json")
+    
+    # Create PROJECT_LEARNINGS.md
+    learnings_file = path / "PROJECT_LEARNINGS.md"
+    if not learnings_file.exists():
+        learnings_file.write_text(f"# Project Learnings\n\nCapture lessons learned during development.\n")
+        created.append("PROJECT_LEARNINGS.md")
+    
+    # Update .gitignore
+    gitignore = path / ".gitignore"
+    maw_ignores = [
+        "# MAW workflow",
+        "WORKFLOW_STATE.json",
+        "AGENT_PROMPTS/",
+    ]
+    
+    if gitignore.exists():
+        content = gitignore.read_text()
+        if "WORKFLOW_STATE.json" not in content:
+            gitignore.write_text(content + "\n" + "\n".join(maw_ignores) + "\n")
+            created.append(".gitignore (updated)")
+    else:
+        gitignore.write_text("\n".join(maw_ignores) + "\n")
+        created.append(".gitignore")
+    
+    if created:
+        lines.append("### Created")
+        for item in created:
+            lines.append(f"- ✅ {item}")
+    else:
+        lines.append("✅ Already set up - nothing to create")
+    
+    lines.append("")
+    lines.append("### Next Steps")
+    lines.append("1. Run `maw_review` to analyze codebase")
+    lines.append("2. Review generated prompts in AGENT_PROMPTS/")
+    lines.append("3. Run `maw_launch` to get agent prompts")
+    
+    return "\n".join(lines)
+
+
+async def handle_clean(args: dict) -> str:
+    """Clean up after iteration"""
+    project_path = args.get("project_path", ".")
+    delete_branches = args.get("delete_branches", False)
+    delete_remote = args.get("delete_remote", False)
+    
+    path = Path(project_path).resolve()
+    lines = ["## MAW Clean\n"]
+    cleaned = []
+    
+    # Delete AGENT_PROMPTS contents (keep directory)
+    prompts_dir = path / "AGENT_PROMPTS"
+    if prompts_dir.exists():
+        count = 0
+        for f in prompts_dir.glob("*.md"):
+            f.unlink()
+            count += 1
+        if count:
+            cleaned.append(f"AGENT_PROMPTS/ ({count} files)")
+    
+    # Reset WORKFLOW_STATE.json
+    state_file = path / "WORKFLOW_STATE.json"
+    if state_file.exists():
+        state = WorkflowState.empty(path)
+        state.iteration = 0  # Reset iteration count
+        save_state(state, project_path)
+        cleaned.append("WORKFLOW_STATE.json (reset to idle)")
+    
+    # Delete local agent branches
+    if delete_branches:
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["git", "branch", "--list", "agent/*"],
+                cwd=project_path,
+                capture_output=True,
+                text=True
+            )
+            branches = [b.strip().lstrip("* ") for b in result.stdout.strip().split("\n") if b.strip()]
+            
+            for branch in branches:
+                subprocess.run(
+                    ["git", "branch", "-D", branch],
+                    cwd=project_path,
+                    capture_output=True
+                )
+            
+            if branches:
+                cleaned.append(f"Local branches ({len(branches)}): {', '.join(branches)}")
+        except Exception as e:
+            lines.append(f"⚠️ Could not delete local branches: {e}")
+    
+    # Delete remote agent branches
+    if delete_remote:
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["git", "branch", "-r", "--list", "origin/agent/*"],
+                cwd=project_path,
+                capture_output=True,
+                text=True
+            )
+            remote_branches = [b.strip().replace("origin/", "") for b in result.stdout.strip().split("\n") if b.strip()]
+            
+            for branch in remote_branches:
+                subprocess.run(
+                    ["git", "push", "origin", "--delete", branch],
+                    cwd=project_path,
+                    capture_output=True
+                )
+            
+            if remote_branches:
+                cleaned.append(f"Remote branches ({len(remote_branches)}): {', '.join(remote_branches)}")
+        except Exception as e:
+            lines.append(f"⚠️ Could not delete remote branches: {e}")
+    
+    if cleaned:
+        lines.append("### Cleaned")
+        for item in cleaned:
+            lines.append(f"- 🗑️ {item}")
+    else:
+        lines.append("✅ Nothing to clean")
+    
+    lines.append("")
+    lines.append("### What's Preserved")
+    lines.append("- PROJECT_LEARNINGS.md (valuable history)")
+    lines.append("- Git commit history")
+    lines.append("- Merged PR changes in main branch")
+    
+    if not delete_branches:
+        lines.append("")
+        lines.append("💡 To also delete branches, run with `delete_branches=true`")
+    
+    if not delete_remote:
+        lines.append("💡 To also delete remote branches, run with `delete_remote=true`")
+    
+    lines.append("")
+    lines.append("### Ready for Next Iteration")
+    lines.append("Run `maw_review` to start fresh analysis")
+    
+    return "\n".join(lines)
 
 
 # =============================================================================
