@@ -1031,6 +1031,12 @@ Set promote=true to also add to central UNIVERSAL_PATTERNS.md"""
     
     if promote:
         patterns_file = CONTENT_DIR / "UNIVERSAL_PATTERNS.md"
+        example_file = CONTENT_DIR / "UNIVERSAL_PATTERNS.example.md"
+        
+        # Create from example if doesn't exist
+        if not patterns_file.exists() and example_file.exists():
+            patterns_file.write_text(example_file.read_text())
+        
         if patterns_file.exists():
             content = patterns_file.read_text()
             patterns_file.write_text(content + f"\n---\n\n### From {path.name}\n**Date:** {timestamp}\n\n{learning}\n")
@@ -1044,8 +1050,14 @@ async def handle_patterns(args: dict) -> str:
     query = args.get("query", "").lower()
     
     patterns_file = CONTENT_DIR / "UNIVERSAL_PATTERNS.md"
+    example_file = CONTENT_DIR / "UNIVERSAL_PATTERNS.example.md"
+    
+    # Create from example if doesn't exist
     if not patterns_file.exists():
-        return "⚠️ UNIVERSAL_PATTERNS.md not found"
+        if example_file.exists():
+            patterns_file.write_text(example_file.read_text())
+        else:
+            return "⚠️ UNIVERSAL_PATTERNS.md not found. Run `maw_learn promote=true` to start capturing patterns."
     
     content = patterns_file.read_text()
     

@@ -39,3 +39,5 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+# User-specific learnings (may contain sensitive project info)
+content/UNIVERSAL_PATTERNS.md
