@@ -29,6 +29,18 @@ git push origin main
 ### Prevention
 Always check remote URL before pushing. If HTTPS, switch to SSH.
 
+### `gh repo create` Gotcha
+**Date:** 2026-01-01
+
+`gh repo create` sets remote to HTTPS even when SSH is preferred:
+```bash
+# Creates repo but uses HTTPS remote
+gh repo create my-repo --private --source=.
+
+# Always follow with:
+git remote set-url origin git@github.com:Dparent97/my-repo.git
+```
+
 ---
 
 ## Commit Message Convention
@@ -79,9 +91,12 @@ git fetch --prune                    # Clean up
 
 All DP repos use SSH:
 - Reality-layer
-- multi-agent-workflow
+- maw-mcp
 - ship-MTA-draft
-- AgentOrchestratedCodeFactory
+- skills
+- crew-shopping-list
+- oil_record_book_tool
+- voice-assistant
 
 ---
 
@@ -112,4 +127,4 @@ git commit -m "docs: update Claude.md"
 
 ---
 
-*Last updated: 2025-12-12*
+*Last updated: 2026-01-01*
