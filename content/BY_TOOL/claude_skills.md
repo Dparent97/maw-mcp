@@ -135,5 +135,58 @@ python workflow/core/workflow_state.py . status
 
 ---
 
-*Last updated: 2025-12-10*
-*Source: Debugging workflow v2.0.0 portability issues*
+## Claude Code Hooks
+
+### Hooks May Not Fire in v2.0.76
+**Date:** 2026-01-01
+**Problem:**
+Configured hooks in `~/.claude/settings.json` for SessionStart and UserPromptSubmit. Tried multiple formats:
+```json
+// Format 1: matcher as object (error: expected string)
+{"matcher": {}, "hooks": [...]}
+
+// Format 2: no matcher (no error, but didn't fire)
+{"hooks": [...]}
+```
+Hooks never fired - tested with `touch /tmp/hook-fired` command.
+
+**Solution:**
+Use CLAUDE.md as fallback. Add "Session Rituals" section at top of `~/.claude/CLAUDE.md`:
+```markdown
+## Session Rituals (IMPORTANT)
+
+### On Session Start
+Proactively run `/capability-sync` (keep output brief)
+
+### On Session End
+When I say "wrap up" / "session end", run `/session-end`
+```
+Claude reads CLAUDE.md every session, so instructions are followed even when hooks don't work.
+
+**Prevention:**
+- Always have CLAUDE.md fallback for critical automation
+- Hybrid approach: hooks for when they work + CLAUDE.md + manual skills
+- Test hooks with simple commands (`touch file`) before complex logic
+
+---
+
+## Cross-Platform Skills
+
+### Skills Work in Desktop If Properly Set Up
+**Date:** 2026-01-01
+**Problem:**
+Skills defined for Claude Code (`/capability-sync`, `/session-end`) needed to work in Claude Desktop app too.
+
+**Solution:**
+1. Skills live in `/Users/dp/Projects/skills/` with SKILL.md files
+2. Symlinked to `~/.claude/skills/` for Claude Code
+3. For Desktop: add skills to Desktop app's MCP or project knowledge
+4. Create platform-specific preferences file for Desktop settings
+
+**Key Insight:**
+The Skill tool invokes skills by name. As long as the skill definition is accessible, it works. Desktop needs skill content in its context (project knowledge or MCP).
+
+---
+
+*Last updated: 2026-01-01*
+*Source: Session automation debugging, capability sync refactor*
